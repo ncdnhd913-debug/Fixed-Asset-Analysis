@@ -21,7 +21,6 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file, usecols="J,AB", engine='openpyxl')
         
         # 컬럼명 정리 및 변경 (read_excel로 가져온 컬럼명을 변경)
-        # Pandas는 컬럼 인덱스로 컬럼명을 지정하지 않으므로, 이 코드가 더 안전합니다.
         # J열에 해당하는 컬럼명을 '취득가액', AB열에 해당하는 컬럼명을 '장부가액'으로 변경
         df.columns = ['취득가액', '장부가액']
         
@@ -30,10 +29,11 @@ if uploaded_file:
         df_full.columns = df_full.columns.str.strip().str.replace(' ', '')
         
         # 필수 컬럼 확인 (자산계정, 자산명)
-        if '자산계정' not in df_full.columns or '자산명' not in df_full.columns:
+        required_columns = ['자산계정', '자산명']
+        if not all(col in df_full.columns for col in required_columns):
             st.error("⚠️ 업로드된 파일에 '자산계정' 또는 '자산명' 컬럼이 누락되었습니다.")
             st.info("엑셀 파일의 컬럼명을 확인하고 수정해주세요.")
-            df = pd.DataFrame() # 데이터프레임 초기화
+            df = pd.DataFrame()
         else:
             # 필요한 데이터만 가져와서 병합
             df_full['취득가액'] = df['취득가액']
@@ -92,8 +92,4 @@ if not df.empty:
     account_summary = df.groupby('자산계정')['장부가액'].sum().reset_index()
     account_summary.columns = ['자산계정', '장부가액 합계']
 
-    # 자산계정별 합계 데이터프레임 표시
-    st.dataframe(account_summary, use_container_width=True)
-        
-else:
-    st.info("왼쪽 사이드바에서 엑셀 파일을 업로드해 주세요.")
+    #
