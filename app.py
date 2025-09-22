@@ -16,29 +16,31 @@ df = pd.DataFrame()
 # 2. 파일 업로드 시 데이터 처리
 if uploaded_file:
     try:
-        # 엑셀 파일 읽기
-        df = pd.read_excel(uploaded_file, engine='openpyxl')
+        # 엑셀 파일 읽기 (컬럼명을 직접 지정하여 J열과 AB열만 읽어옴)
+        # 엑셀 컬럼은 0부터 시작하므로 J열은 9번째, AB열은 27번째 인덱스입니다.
+        df = pd.read_excel(uploaded_file, usecols="J,AB", engine='openpyxl')
         
-        # ✨ 수정된 부분: 컬럼명에서 공백 제거 (strip()보다 강력)
-        df.columns = df.columns.str.strip().str.replace(' ', '')
+        # 컬럼명 정리 및 변경 (read_excel로 가져온 컬럼명을 변경)
+        # Pandas는 컬럼 인덱스로 컬럼명을 지정하지 않으므로, 이 코드가 더 안전합니다.
+        # J열에 해당하는 컬럼명을 '취득가액', AB열에 해당하는 컬럼명을 '장부가액'으로 변경
+        df.columns = ['취득가액', '장부가액']
         
-        # '자산계정', '자산명' 등 필수 컬럼명 정의
-        required_columns = ['자산계정', '자산명', '취득가액', '장부가액']
+        # '자산계정', '자산명' 등 추가 정보가 필요하므로 전체 파일 다시 읽기
+        df_full = pd.read_excel(uploaded_file, engine='openpyxl')
+        df_full.columns = df_full.columns.str.strip().str.replace(' ', '')
         
-        # 실제 데이터프레임의 컬럼명 목록
-        df_columns = list(df.columns)
-        
-        # 누락된 필수 컬럼 찾기
-        missing_columns = [col for col in required_columns if col not in df_columns]
-        
-        # 누락된 컬럼이 있으면 오류 메시지 출력
-        if missing_columns:
-            st.error(f"⚠️ 업로드된 파일에 다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
+        # 필수 컬럼 확인 (자산계정, 자산명)
+        if '자산계정' not in df_full.columns or '자산명' not in df_full.columns:
+            st.error("⚠️ 업로드된 파일에 '자산계정' 또는 '자산명' 컬럼이 누락되었습니다.")
             st.info("엑셀 파일의 컬럼명을 확인하고 수정해주세요.")
             df = pd.DataFrame() # 데이터프레임 초기화
         else:
-            # 필수 컬럼이 모두 있을 경우 데이터 처리 계속 진행
-            # '자산계정'과 '자산명' 컬럼의 공란 및 누락 데이터 제거
+            # 필요한 데이터만 가져와서 병합
+            df_full['취득가액'] = df['취득가액']
+            df_full['장부가액'] = df['장부가액']
+            df = df_full
+            
+            # 자산계정 및 자산명 공란 제거
             df = df.dropna(subset=['자산계정', '자산명'])
             
             # '자산계정' 컬럼을 문자열로 변환
