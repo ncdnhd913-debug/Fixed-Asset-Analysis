@@ -22,14 +22,17 @@ if uploaded_file:
         # 컬럼명 정리 (불필요한 공백 제거 등)
         df.columns = df.columns.str.strip()
         
-        # '자산계정' 컬럼이 있는지 확인
-        if '자산계정' not in df.columns:
-            st.error("업로드된 파일에 '자산계정' 컬럼이 없습니다. 올바른 파일을 업로드해주세요.")
+        # '자산계정'과 '자산명' 컬럼이 있는지 확인
+        required_columns = ['자산계정', '자산명', '취득가액', '장부가액']
+        if not all(col in df.columns for col in required_columns):
+            st.error(f"업로드된 파일에 다음 필수 컬럼이 모두 포함되어야 합니다: {', '.join(required_columns)}")
             df = pd.DataFrame()
         else:
-            # ✨ 수정된 부분: '자산계정' 컬럼을 문자열로 변환하고 비어 있는 행 제거
+            # ✨ 수정된 부분: '자산계정'과 '자산명' 컬럼의 공란 및 누락 데이터 제거
+            df = df.dropna(subset=['자산계정', '자산명'])
+            
+            # '자산계정' 컬럼을 문자열로 변환
             df['자산계정'] = df['자산계정'].astype(str)
-            df = df.dropna(subset=['자산계정'])  # '자산계정' 컬럼의 NaN(공란) 값 제거
             
     except Exception as e:
         st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
@@ -57,19 +60,28 @@ if not df.empty:
     st.dataframe(filtered_df, use_container_width=True)
 
     st.markdown("---")
-    
-    # 고정자산 총계 정보 표시
-    if '취득가액' in filtered_df.columns and '장부가액' in filtered_df.columns:
-        total_acquisition_cost = filtered_df['취득가액'].sum()
-        total_book_value = filtered_df['장부가액'].sum()
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="총 취득가액", value=f"{total_acquisition_cost:,.0f} 원")
-        with col2:
-            st.metric(label="총 장부가액", value=f"{total_book_value:,.0f} 원")
-    else:
-        st.warning("취득가액 또는 장부가액 컬럼이 없어 총계를 계산할 수 없습니다.")
+    ## 고정자산 총계 정보
+    total_acquisition_cost = filtered_df['취득가액'].sum()
+    total_book_value = filtered_df['장부가액'].sum()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="총 취득가액", value=f"{total_acquisition_cost:,.0f} 원")
+    with col2:
+        st.metric(label="총 장부가액", value=f"{total_book_value:,.0f} 원")
+
+    st.markdown("---")
+
+    ## 자산계정별 장부가액 합계
+    st.subheader("계정별 장부가액 합계")
+    
+    # 자산계정별 장부가액 합계 계산
+    account_summary = df.groupby('자산계정')['장부가액'].sum().reset_index()
+    account_summary.columns = ['자산계정', '장부가액 합계']
+
+    # 자산계정별 합계 데이터프레임 표시
+    st.dataframe(account_summary, use_container_width=True)
         
 else:
     st.info("왼쪽 사이드바에서 엑셀 파일을 업로드해 주세요.")
