@@ -27,8 +27,9 @@ if uploaded_file:
             st.error("업로드된 파일에 '자산계정' 컬럼이 없습니다. 올바른 파일을 업로드해주세요.")
             df = pd.DataFrame()
         else:
-            # ✨ 수정된 부분: '자산계정' 컬럼을 문자열로 변환
+            # ✨ 수정된 부분: '자산계정' 컬럼을 문자열로 변환하고 비어 있는 행 제거
             df['자산계정'] = df['자산계정'].astype(str)
+            df = df.dropna(subset=['자산계정'])  # '자산계정' 컬럼의 NaN(공란) 값 제거
             
     except Exception as e:
         st.error(f"파일을 읽는 도중 오류가 발생했습니다: {e}")
