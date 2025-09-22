@@ -21,7 +21,6 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file, usecols="J,AB", engine='openpyxl')
         
         # 컬럼명 정리 및 변경 (read_excel로 가져온 컬럼명을 변경)
-        # J열에 해당하는 컬럼명을 '취득가액', AB열에 해당하는 컬럼명을 '장부가액'으로 변경
         df.columns = ['취득가액', '장부가액']
         
         # '자산계정', '자산명' 등 추가 정보가 필요하므로 전체 파일 다시 읽기
@@ -40,6 +39,10 @@ if uploaded_file:
             df_full['장부가액'] = df['장부가액']
             df = df_full
             
+            # ✨ 수정된 부분: 숫자 컬럼을 명시적으로 숫자 타입으로 변환
+            df['취득가액'] = pd.to_numeric(df['취득가액'], errors='coerce')
+            df['장부가액'] = pd.to_numeric(df['장부가액'], errors='coerce')
+            
             # 자산계정 및 자산명 공란 제거
             df = df.dropna(subset=['자산계정', '자산명'])
             
@@ -54,42 +57,3 @@ if not df.empty:
     
     # '자산계정' 컬럼의 고유값들을 가져옴
     asset_accounts = sorted(df['자산계정'].unique())
-    
-    # 전체를 볼 수 있는 옵션 추가
-    all_option = "전체"
-    options_with_all = [all_option] + list(asset_accounts)
-    
-    # 드롭다운 메뉴 생성 (사이드바에 위치)
-    selected_account = st.sidebar.selectbox("자산 계정을 선택하세요", options_with_all)
-    
-    # 선택된 계정에 따라 데이터 필터링
-    if selected_account == all_option:
-        filtered_df = df
-    else:
-        filtered_df = df[df['자산계정'] == selected_account]
-    
-    st.subheader(f"고정자산 명세서 - {selected_account} ({len(filtered_df)}건)")
-    st.dataframe(filtered_df, use_container_width=True)
-
-    st.markdown("---")
-
-    ## 고정자산 총계 정보
-    total_acquisition_cost = filtered_df['취득가액'].sum()
-    total_book_value = filtered_df['장부가액'].sum()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="총 취득가액", value=f"{total_acquisition_cost:,.0f} 원")
-    with col2:
-        st.metric(label="총 장부가액", value=f"{total_book_value:,.0f} 원")
-
-    st.markdown("---")
-
-    ## 자산계정별 장부가액 합계
-    st.subheader("계정별 장부가액 합계")
-    
-    # 자산계정별 장부가액 합계 계산
-    account_summary = df.groupby('자산계정')['장부가액'].sum().reset_index()
-    account_summary.columns = ['자산계정', '장부가액 합계']
-
-    #
