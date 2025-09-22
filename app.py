@@ -16,29 +16,32 @@ df = pd.DataFrame()
 # 2. 파일 업로드 시 데이터 처리
 if uploaded_file:
     try:
-        # 엑셀 파일 읽기 (컬럼명을 직접 지정하여 J열과 AB열만 읽어옴)
-        # 엑셀 컬럼은 0부터 시작하므로 J열은 9번째, AB열은 27번째 인덱스입니다.
-        df = pd.read_excel(uploaded_file, usecols="J,AB", engine='openpyxl')
+        # 엑셀 파일 전체를 한 번에 읽기
+        df = pd.read_excel(uploaded_file, engine='openpyxl')
         
-        # 컬럼명 정리 및 변경 (read_excel로 가져온 컬럼명을 변경)
-        df.columns = ['취득가액', '장부가액']
+        # 컬럼명 정리: 모든 공백 제거
+        df.columns = df.columns.str.strip().str.replace(' ', '')
         
-        # '자산계정', '자산명' 등 추가 정보가 필요하므로 전체 파일 다시 읽기
-        df_full = pd.read_excel(uploaded_file, engine='openpyxl')
-        df_full.columns = df_full.columns.str.strip().str.replace(' ', '')
+        # 필수 컬럼명을 엑셀 파일의 실제 컬럼명에 맞게 조정
+        # 이 부분은 사용자가 직접 엑셀 파일을 확인하고 수정해야 합니다.
+        # 예시: '자산계정명' -> '자산계정'
+        # df = df.rename(columns={'자산계정명': '자산계정', '자산명칭': '자산명'})
+
+        # 필수 컬럼 리스트 정의
+        required_columns = ['자산계정', '자산명', '취득가액', '장부가액']
         
-        # 필수 컬럼 확인 (자산계정, 자산명)
-        required_columns = ['자산계정', '자산명']
-        if not all(col in df_full.columns for col in required_columns):
-            st.error("⚠️ 업로드된 파일에 '자산계정' 또는 '자산명' 컬럼이 누락되었습니다.")
-            st.info("엑셀 파일의 컬럼명을 확인하고 수정해주세요.")
+        # 실제 데이터프레임의 컬럼명 목록
+        df_columns = list(df.columns)
+        
+        # 누락된 필수 컬럼 찾기
+        missing_columns = [col for col in required_columns if col not in df_columns]
+        
+        # 누락된 컬럼이 있으면 오류 메시지 출력 후 종료
+        if missing_columns:
+            st.error(f"⚠️ 업로드된 파일에 다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
+            st.info("엑셀 파일의 컬럼명을 확인하고 수정해주세요. (예: '자산계정', '자산명', '취득가액', '장부가액')")
             df = pd.DataFrame()
         else:
-            # 필요한 데이터만 가져와서 병합
-            df_full['취득가액'] = df['취득가액']
-            df_full['장부가액'] = df['장부가액']
-            df = df_full
-            
             # ✨ 수정된 부분: 숫자 컬럼을 명시적으로 숫자 타입으로 변환
             df['취득가액'] = pd.to_numeric(df['취득가액'], errors='coerce')
             df['장부가액'] = pd.to_numeric(df['장부가액'], errors='coerce')
@@ -57,3 +60,53 @@ if not df.empty:
     
     # '자산계정' 컬럼의 고유값들을 가져옴
     asset_accounts = sorted(df['자산계정'].unique())
+    
+    # 전체를 볼 수 있는 옵션 추가
+    all_option = "전체"
+    options_with_all = [all_option] + list(asset_accounts)
+    
+    # 드롭다운 메뉴 생성 (사이드바에 위치)
+    selected_account = st.sidebar.selectbox("자산 계정을 선택하세요", options_with_all)
+    
+    # 선택된 계정에 따라 데이터 필터링
+    if selected_account == all_option:
+        filtered_df = df
+    else:
+        filtered_df = df[df['자산계정'] == selected_account]
+    
+    st.subheader(f"고정자산 명세서 - {selected_account} ({len(filtered_df)}건)")
+    st.dataframe(filtered_df, use_container_width=True)
+
+    st.markdown("---")
+
+    ## 고정자산 총계 정보
+    # NaN 값은 .sum()에서 자동으로 무시되므로 안전합니다.
+    total_acquisition_cost = filtered_df['취득가액'].sum()
+    total_book_value = filtered_df['장부가액'].sum()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="총 취득가액", value=f"{total_acquisition_cost:,.0f} 원")
+    with col2:
+        st.metric(label="총 장부가액", value=f"{total_book_value:,.0f} 원")
+
+    st.markdown("---")
+
+    ## 자산계정별 장부가액 합계
+    st.subheader("계정별 장부가액 합계")
+    
+    # 자산계정별 장부가액 합계 계산
+    account_summary = df.groupby('자산계정')['장부가액'].sum().reset_index()
+    account_summary.columns = ['자산계정', '장부가액 합계']
+
+    # 데이터프레임과 그래프 동시 표시
+    st.dataframe(account_summary, use_container_width=True)
+    
+    st.markdown("---")
+    st.subheader("계정별 장부가액 합계 (Bar Chart)")
+    
+    # Bar Chart 생성 및 표시
+    st.bar_chart(account_summary.set_index('자산계정'))
+        
+else:
+    st.info("왼쪽 사이드바에서 엑셀 파일을 업로드해 주세요.")
