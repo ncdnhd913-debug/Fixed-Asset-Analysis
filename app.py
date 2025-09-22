@@ -19,16 +19,26 @@ if uploaded_file:
         # 엑셀 파일 읽기
         df = pd.read_excel(uploaded_file, engine='openpyxl')
         
-        # 컬럼명 정리 (불필요한 공백 제거 등)
-        df.columns = df.columns.str.strip()
+        # ✨ 수정된 부분: 컬럼명에서 공백 제거 (strip()보다 강력)
+        df.columns = df.columns.str.strip().str.replace(' ', '')
         
-        # '자산계정'과 '자산명' 컬럼이 있는지 확인
+        # '자산계정', '자산명' 등 필수 컬럼명 정의
         required_columns = ['자산계정', '자산명', '취득가액', '장부가액']
-        if not all(col in df.columns for col in required_columns):
-            st.error(f"업로드된 파일에 다음 필수 컬럼이 모두 포함되어야 합니다: {', '.join(required_columns)}")
-            df = pd.DataFrame()
+        
+        # 실제 데이터프레임의 컬럼명 목록
+        df_columns = list(df.columns)
+        
+        # 누락된 필수 컬럼 찾기
+        missing_columns = [col for col in required_columns if col not in df_columns]
+        
+        # 누락된 컬럼이 있으면 오류 메시지 출력
+        if missing_columns:
+            st.error(f"⚠️ 업로드된 파일에 다음 필수 컬럼이 누락되었습니다: {', '.join(missing_columns)}")
+            st.info("엑셀 파일의 컬럼명을 확인하고 수정해주세요.")
+            df = pd.DataFrame() # 데이터프레임 초기화
         else:
-            # ✨ 수정된 부분: '자산계정'과 '자산명' 컬럼의 공란 및 누락 데이터 제거
+            # 필수 컬럼이 모두 있을 경우 데이터 처리 계속 진행
+            # '자산계정'과 '자산명' 컬럼의 공란 및 누락 데이터 제거
             df = df.dropna(subset=['자산계정', '자산명'])
             
             # '자산계정' 컬럼을 문자열로 변환
